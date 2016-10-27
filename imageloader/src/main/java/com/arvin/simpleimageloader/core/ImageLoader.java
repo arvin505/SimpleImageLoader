@@ -2,7 +2,6 @@ package com.arvin.simpleimageloader.core;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
@@ -10,7 +9,7 @@ import android.text.TextUtils;
 import android.widget.ImageView;
 
 import com.arvin.simpleimageloader.cache.BitmapCache;
-import com.arvin.simpleimageloader.cache.DiskCache;
+import com.arvin.simpleimageloader.cache.DoubleCache;
 import com.arvin.simpleimageloader.utils.CloseUtil;
 
 import java.io.InputStream;
@@ -28,7 +27,7 @@ import java.util.concurrent.Executors;
 public class ImageLoader {
 
     ExecutorService mExcutorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() + 2);
-    private BitmapCache mImageCache = new DiskCache();
+    private BitmapCache mImageCache = new DoubleCache();
     private ImageLoader() {
     }
 
