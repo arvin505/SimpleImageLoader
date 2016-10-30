@@ -10,6 +10,8 @@ import android.widget.ImageView;
 
 import com.arvin.simpleimageloader.cache.BitmapCache;
 import com.arvin.simpleimageloader.cache.DoubleCache;
+import com.arvin.simpleimageloader.config.DisplayConfig;
+import com.arvin.simpleimageloader.config.ImageLoaderConfig;
 import com.arvin.simpleimageloader.utils.CloseUtil;
 
 import java.io.InputStream;
@@ -26,8 +28,16 @@ import java.util.concurrent.Executors;
 
 public class ImageLoader {
 
-    ExecutorService mExcutorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() + 2);
-    private BitmapCache mImageCache = new DoubleCache();
+    ExecutorService mExcutorService;
+
+    private ImageLoaderConfig mConfig;
+
+    private int mThreadCount = Runtime.getRuntime().availableProcessors() + 2;
+
+    private BitmapCache mImageCache;
+
+    private DisplayConfig mDisplayConfig;
+
     private ImageLoader() {
     }
 
@@ -40,6 +50,21 @@ public class ImageLoader {
     }
 
 
+    public void init(ImageLoaderConfig config) {
+        mConfig = config;
+        checkConfig();
+    }
+
+    private void checkConfig() {
+        if (mConfig == null)
+            throw new RuntimeException(
+                    "The config of SimpleImageLoader is Null, please call the init(ImageLoaderConfig config) method to initialize");
+        mImageCache = mConfig.mCache;
+        mThreadCount = mConfig.threadCount;
+        mDisplayConfig = mConfig.mDisplayConfig;
+        mExcutorService = Executors.newFixedThreadPool(mThreadCount);
+    }
+
 
     public void displayImage(ImageView imageView, String url) {
         String cacheUrl = filterUrl(url);
@@ -49,8 +74,8 @@ public class ImageLoader {
         } else {
             // FIXME: 2016/10/27 下载
             imageView.setTag(cacheUrl);
+            imageView.setImageResource(mDisplayConfig.loadingResId);
             downloadBitmap(imageView, url);
-
         }
 
     }
@@ -66,19 +91,27 @@ public class ImageLoader {
                     is = conn.getInputStream();
                     Bitmap b = BitmapFactory.decodeStream(is);
                     Message msg = mH.obtainMessage();
-                    Map<ImageView , Bitmap> data = new HashMap<ImageView, Bitmap>();
-                    data.put(imageView,b);
+                    Map<ImageView, Bitmap> data = new HashMap<ImageView, Bitmap>();
+                    data.put(imageView, b);
                     msg.obj = data;
-                    if (imageView.getTag().equals(filterUrl(imageUrl))){
+                    if (imageView.getTag().equals(filterUrl(imageUrl))) {
                         mH.sendMessage(msg);
                     }
-                    mImageCache.put(filterUrl(imageUrl),b);
+                    mImageCache.put(filterUrl(imageUrl), b);
                     conn.disconnect();
-
+                    return;
                 } catch (Exception e) {
                     e.printStackTrace();
                 } finally {
                     CloseUtil.close(is);
+                }
+
+                Message msg = mH.obtainMessage();
+                Map<ImageView, Bitmap> data = new HashMap<ImageView, Bitmap>();
+                data.put(imageView, null);
+                msg.obj = data;
+                if (imageView.getTag().equals(filterUrl(imageUrl))) {
+                    mH.sendMessage(msg);
                 }
             }
         });
@@ -91,13 +124,18 @@ public class ImageLoader {
         return url.replaceAll("/", "");
     }
 
-    private static Handler mH = new Handler(Looper.getMainLooper()){
+    private static Handler mH = new Handler(Looper.getMainLooper()) {
         @Override
         public void handleMessage(Message msg) {
             super.handleMessage(msg);
-            Map<ImageView,Bitmap> data = (Map<ImageView, Bitmap>) msg.obj;
-            for (Map.Entry<ImageView,Bitmap> entry : data.entrySet()){
-                entry.getKey().setImageBitmap(entry.getValue());
+            Map<ImageView, Bitmap> data = (Map<ImageView, Bitmap>) msg.obj;
+            for (Map.Entry<ImageView, Bitmap> entry : data.entrySet()) {
+                if (entry.getValue() != null) {
+                    entry.getKey().setImageBitmap(entry.getValue());
+                } else {
+                    entry.getKey().setImageResource(ImageLoader.getInstance().mDisplayConfig.failedResId);
+                }
+
             }
         }
     };
